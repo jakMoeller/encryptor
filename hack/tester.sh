@@ -1,3 +1,6 @@
 #!/bin/bash
-echo '{"json":"message"}' | fluent-cat debug.test
 
+for i in {1..5}
+do
+    echo '{"user_id":"jakob"}' | fluent-cat debug.test
+done

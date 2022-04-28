@@ -5,5 +5,8 @@ build:
 install:
 	/usr/bin/gem install fluentbit-plugin-encrypt.gem
 
+uninstall:
+	/usr/bin/gem uninstall fluent-plugin-encrypt
+
 start:
-	/usr/local/bin/fluentd -c ./fluent.example.conf -vv
+	/usr/local/bin/fluentd -c ./fluent.example.conf -p ruby/fluent-plugin-encrypt/lib/fluent/plugin -vv

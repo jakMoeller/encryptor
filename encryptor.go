@@ -12,65 +12,84 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"sync"
 )
+
+var cryptLock = sync.Mutex{}
 
 //export encrypt
 func encrypt(k, v *C.char) *C.char {
-	key, value := decodedString(k), decodedString(v)
+	cryptLock.Lock()
+	defer cryptLock.Unlock()
+	key, err := hex.DecodeString(C.GoString(k))
+	if err != nil {
+		println(err.Error())
+		return C.CString("DECODE_FAILURE")
+	}
+
+	value := []byte(C.GoString(v))
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		panic(err.Error())
+		println(err.Error())
+		return v
 	}
 
 	aesGCM, gcmErr := cipher.NewGCM(block)
 	if gcmErr != nil {
-		panic(err.Error())
+		println(gcmErr.Error())
+		return v
 	}
 
 	nonce := make([]byte, aesGCM.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		panic(err.Error())
+		println(err.Error())
+		return v
 	}
 
 	ciphertext := aesGCM.Seal(nonce, nonce, value, nil)
-	return encodedString([]byte(fmt.Sprintf("%x", ciphertext)))
+
+	println(fmt.Sprintf("Encryption Finished: %s => ENCRYPTED", value))
+
+	return C.CString(string(ciphertext))
 }
 
 //export decrypt
 func decrypt(k, v *C.char) *C.char {
-	key, value := decodedString(k), decodedString(v)
+	cryptLock.Lock()
+	defer cryptLock.Unlock()
+	key, err := hex.DecodeString(C.GoString(k))
+	if err != nil {
+		println(err.Error())
+		return C.CString("DECODE_FAILURE")
+	}
+
+	value := []byte(C.GoString(v))
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		panic(err.Error())
+		println(err.Error())
+		return C.CString("DECODE_FAILURE")
 	}
 
 	aesGCM, gcmErr := cipher.NewGCM(block)
 	if gcmErr != nil {
-		panic(err.Error())
+		println(gcmErr.Error())
+		return C.CString("DECODE_FAILURE")
 	}
 
 	nonceSize := aesGCM.NonceSize()
 
 	nonce, ciphertext := value[:nonceSize], value[nonceSize:]
+
 	plaintext, decodeErr := aesGCM.Open(nil, nonce, ciphertext, nil)
 
 	if decodeErr != nil {
-		panic(err.Error())
+		println(decodeErr.Error())
+		return C.CString("DECODE_FAILURE")
 	}
 
-	return encodedString(plaintext)
-}
+	println(fmt.Sprintf("Decryption Finished: ENCRYPTED => %s", plaintext))
 
-func decodedString(in *C.char) []byte {
-	out, err := hex.DecodeString(C.GoString(in))
-	if err != nil {
-		panic(err.Error())
-	}
-	return out
-}
-
-func encodedString(in []byte) *C.char {
-	return C.CString(hex.EncodeToString(in))
+	return C.CString(string(plaintext))
 }
 
 func main() {
